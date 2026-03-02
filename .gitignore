@@ -1,0 +1,7 @@
+/target
+/client/target
+/server/target
+/program/target
+/common/target
+.idea
+server_nacl_keypair.json

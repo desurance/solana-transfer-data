@@ -1,0 +1,16 @@
+[package]
+name = "solana-transfer-data-test"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+solana-transfer-data-common = { path = "../common" }
+solana-transfer-data-server = { path = "../server" }
+solana-transfer-data-client = { path = "../client" }
+tokio = "1.49.0"
+anyhow = "1.0.102"
+log = "0.4.29"
+env_logger = "0.11.9"
+solana-sdk = "3.0.0"
+solana-keypair = "3.1.2"
+rand = "0.10"

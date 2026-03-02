@@ -1,0 +1,7 @@
+[workspace]
+resolver = "3"
+members = ["client", "common", "server", "solana-transfer-data-test"]
+# The on-chain program targets sbf-solana-solana and must be built with
+# `cargo build-sbf` from inside the program/ directory. Excluding it here
+# prevents the host toolchain from attempting to compile it.
+exclude = ["program"]

@@ -1,0 +1,23 @@
+[workspace]
+
+[package]
+name = "solana-transfer-data-program"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[features]
+no-entrypoint = []
+# Declared to satisfy the cfg check introduced in Rust 1.80+.
+# These are used internally by the entrypoint! macro on SBF targets.
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+solana-program = "4.0.0"
+
+[lints.rust]
+# target_os = "solana" is a valid SBF target but unknown to the host rustc.
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(target_os, values("solana"))'] }
