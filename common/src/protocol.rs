@@ -14,15 +14,13 @@ pub const VERSION: u8 = 1;
 ///
 /// Wire format (big-endian):
 /// ```text
-///   MAGIC (4) | VERSION (1) | transfer_id (32) | chunk_index (4) | total_chunks (4)
-///   | filename_len (2) | filename (variable) | payload (variable)
+///   MAGIC (4) | VERSION (1) | transfer_id (32) | chunk_index (4) | total_chunks (4) | payload (variable)
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChunkHeader {
     pub transfer_id: [u8; 32],
     pub chunk_index: u32,
     pub total_chunks: u32,
-    pub filename: String,
 }
 
 #[derive(Debug, Clone)]
@@ -33,16 +31,11 @@ pub struct Chunk {
 
 impl Chunk {
     pub fn to_bytes(&self) -> Vec<u8> {
-        let filename_bytes = self.header.filename.as_bytes();
-        let filename_len = filename_bytes.len() as u16;
-
         let total_len = 4  // MAGIC
             + 1            // VERSION
             + 32           // transfer_id
             + 4            // chunk_index
             + 4            // total_chunks
-            + 2            // filename_len
-            + filename_bytes.len()
             + self.payload.len();
 
         let mut buf = Vec::with_capacity(total_len);
@@ -51,8 +44,6 @@ impl Chunk {
         buf.extend_from_slice(&self.header.transfer_id);
         buf.extend_from_slice(&self.header.chunk_index.to_be_bytes());
         buf.extend_from_slice(&self.header.total_chunks.to_be_bytes());
-        buf.extend_from_slice(&filename_len.to_be_bytes());
-        buf.extend_from_slice(filename_bytes);
         buf.extend_from_slice(&self.payload);
         buf
     }
@@ -79,12 +70,7 @@ impl Chunk {
         let total_chunks = u32::from_be_bytes(data[offset..offset + 4].try_into()?);
         offset += 4;
 
-        let filename_len = u16::from_be_bytes(data[offset..offset + 2].try_into()?) as usize;
-        offset += 2;
-
-        anyhow::ensure!(data.len() >= offset + filename_len, "Filename truncated");
-        let filename = String::from_utf8(data[offset..offset + filename_len].to_vec())?;
-        offset += filename_len;
+        anyhow::ensure!(data.len() >= offset);
 
         let payload = data[offset..].to_vec();
 
@@ -93,7 +79,6 @@ impl Chunk {
                 transfer_id,
                 chunk_index,
                 total_chunks,
-                filename,
             },
             payload,
         })
@@ -109,11 +94,9 @@ pub fn compute_transfer_id(data: &[u8]) -> [u8; 32] {
 pub fn split_into_chunks(
     encrypted_data: &[u8],
     transfer_id: [u8; 32],
-    filename: &str,
 ) -> Vec<Chunk> {
     let header_overhead = 4 + 1 + 32 + 4 + 4 + 2;
-    let first_chunk_payload_cap = MAX_CHUNK_PAYLOAD - header_overhead - filename.len();
-    let other_chunk_payload_cap = MAX_CHUNK_PAYLOAD - header_overhead;
+    let chunk_payload_cap = MAX_CHUNK_PAYLOAD - header_overhead;
 
     if encrypted_data.is_empty() {
         return vec![Chunk {
@@ -121,18 +104,17 @@ pub fn split_into_chunks(
                 transfer_id,
                 chunk_index: 0,
                 total_chunks: 1,
-                filename: filename.to_string(),
             },
             payload: vec![],
         }];
     }
 
-    let first_part = encrypted_data.len().min(first_chunk_payload_cap);
+    let first_part = encrypted_data.len().min(chunk_payload_cap);
     let remaining = encrypted_data.len().saturating_sub(first_part);
     let extra_chunks = if remaining == 0 {
         0
     } else {
-        (remaining + other_chunk_payload_cap - 1) / other_chunk_payload_cap
+        (remaining + chunk_payload_cap - 1) / chunk_payload_cap
     };
     let total_chunks = 1 + extra_chunks as u32;
 
@@ -143,7 +125,6 @@ pub fn split_into_chunks(
             transfer_id,
             chunk_index: 0,
             total_chunks,
-            filename: filename.to_string(),
         },
         payload: encrypted_data[..first_part].to_vec(),
     });
@@ -151,13 +132,12 @@ pub fn split_into_chunks(
     let mut offset = first_part;
     let mut idx = 1u32;
     while offset < encrypted_data.len() {
-        let end = (offset + other_chunk_payload_cap).min(encrypted_data.len());
+        let end = (offset + chunk_payload_cap).min(encrypted_data.len());
         chunks.push(Chunk {
             header: ChunkHeader {
                 transfer_id,
                 chunk_index: idx,
                 total_chunks,
-                filename: String::new(),
             },
             payload: encrypted_data[offset..end].to_vec(),
         });
@@ -169,7 +149,7 @@ pub fn split_into_chunks(
 }
 
 /// Reassemble payload from ordered chunks.
-pub fn reassemble_chunks(chunks: &[Chunk]) -> anyhow::Result<(String, Vec<u8>)> {
+pub fn reassemble_chunks(chunks: &[Chunk]) -> anyhow::Result<Vec<u8>> {
     anyhow::ensure!(!chunks.is_empty(), "No chunks to reassemble");
     let total = chunks[0].header.total_chunks as usize;
     anyhow::ensure!(
@@ -179,11 +159,6 @@ pub fn reassemble_chunks(chunks: &[Chunk]) -> anyhow::Result<(String, Vec<u8>)> 
         chunks.len()
     );
 
-    let filename = chunks
-        .iter()
-        .find(|c| c.header.chunk_index == 0)
-        .map(|c| c.header.filename.clone())
-        .unwrap_or_default();
     let mut data = Vec::new();
     for i in 0..total {
         let chunk = chunks
@@ -193,7 +168,7 @@ pub fn reassemble_chunks(chunks: &[Chunk]) -> anyhow::Result<(String, Vec<u8>)> 
         data.extend_from_slice(&chunk.payload);
     }
 
-    Ok((filename, data))
+    Ok(data)
 }
 
 #[cfg(test)]
@@ -201,9 +176,9 @@ mod tests {
     use super::*;
     use rand::{rngs::SmallRng, RngExt, SeedableRng};
 
-    fn round_trip(data: &[u8], filename: &str) {
+    fn round_trip(data: &[u8]) {
         let tid = compute_transfer_id(data);
-        let chunks = split_into_chunks(data, tid, filename);
+        let chunks = split_into_chunks(data, tid);
 
         // Every chunk must fit within MAX_CHUNK_PAYLOAD
         for c in &chunks {
@@ -226,8 +201,7 @@ mod tests {
         use rand::seq::SliceRandom;
         parsed.shuffle(&mut SmallRng::seed_from_u64(42));
 
-        let (fname, reassembled) = reassemble_chunks(&parsed).unwrap();
-        assert_eq!(fname, filename);
+        let reassembled = reassemble_chunks(&parsed).unwrap();
         assert_eq!(reassembled, data);
     }
 
@@ -236,20 +210,18 @@ mod tests {
         // Fits in a single chunk
         let mut rng = SmallRng::seed_from_u64(1);
         let data: Vec<u8> = (0..100).map(|_| rng.random()).collect();
-        round_trip(&data, "small.bin");
+        round_trip(&data);
     }
 
     #[test]
     fn test_round_trip_exact_chunk_boundary() {
         // Data that lands exactly on a chunk boundary
         let header_overhead = 4 + 1 + 32 + 4 + 4 + 2;
-        let filename = "boundary.bin";
-        let first_cap = MAX_CHUNK_PAYLOAD - header_overhead - filename.len();
-        let other_cap = MAX_CHUNK_PAYLOAD - header_overhead;
-        let size = first_cap + other_cap * 3; // exactly 4 chunks
+        let cap = MAX_CHUNK_PAYLOAD - header_overhead;
+        let size = cap * 4; // exactly 4 chunks
         let mut rng = SmallRng::seed_from_u64(2);
         let data: Vec<u8> = (0..size).map(|_| rng.random()).collect();
-        round_trip(&data, filename);
+        round_trip(&data);
     }
 
     #[test]
@@ -257,11 +229,11 @@ mod tests {
         // ~370 KB of random data (~493 chunks, matching the real test.bin scenario)
         let mut rng = SmallRng::seed_from_u64(3);
         let data: Vec<u8> = (0..370_000).map(|_| rng.random()).collect();
-        round_trip(&data, "test.bin");
+        round_trip(&data);
     }
 
     #[test]
     fn test_round_trip_empty() {
-        round_trip(&[], "empty.bin");
+        round_trip(&[]);
     }
 }

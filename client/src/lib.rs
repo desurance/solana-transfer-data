@@ -99,12 +99,11 @@ impl SolanaTransferDataClient {
         })
     }
 
-    pub async fn send_as_file(
+    pub async fn send_as_bytes(
         &self,
-        content: Vec<u8>,
-        filename: String,
+        content: Vec<u8>
     ) -> Result<()> {
-        info!("Read file: {} ({} bytes)", filename, content.len());
+        info!("Read data with {} bytes", content.len());
 
         let transfer_id = protocol::compute_transfer_id(&content);
         info!("Transfer ID: {}", hex::encode(transfer_id));
@@ -116,7 +115,7 @@ impl SolanaTransferDataClient {
             encrypted.len() - content.len()
         );
 
-        let chunks = protocol::split_into_chunks(&encrypted, transfer_id, &filename);
+        let chunks = protocol::split_into_chunks(&encrypted, transfer_id);
         info!("Split into {} chunk(s)", chunks.len());
 
         self.send_chunk(&self.destination_address, &chunks).await?;

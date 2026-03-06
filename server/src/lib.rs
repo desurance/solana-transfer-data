@@ -36,7 +36,7 @@ pub struct AppState {
     nacl_sk: SecretKey,
     solana_pubkey: Pubkey,
     transfers: Mutex<HashMap<String, TransferState>>,
-    file_callback: fn(String, Vec<u8>)
+    data_callback: fn(Vec<u8>)
 }
 
 async fn get_public_key(state: web::Data<Arc<AppState>>) -> HttpResponse {
@@ -156,7 +156,7 @@ impl SolanaTransferDataServer {
                         drop(transfers);
 
                         match protocol::reassemble_chunks(&ordered) {
-                            Ok((filename, encrypted_data)) => {
+                            Ok(encrypted_data) => {
                                 match crypto::decrypt(&encrypted_data, &state.nacl_sk) {
                                     Ok(plaintext) => {
                                         let actual_id = protocol::compute_transfer_id(&plaintext);
@@ -166,12 +166,7 @@ impl SolanaTransferDataServer {
                                                 &tid_hex[..16]
                                             );
                                         } else {
-                                            let fname = if filename.is_empty() {
-                                                format!("{}.bin", &tid_hex[..16])
-                                            } else {
-                                                filename
-                                            };
-                                            (state.file_callback)(fname, plaintext);
+                                            (state.data_callback)(plaintext);
                                         }
                                     }
                                     Err(e) => error!(
@@ -238,7 +233,7 @@ pub struct SolanaTransferDataServerBuilder {
     http_addr: Option<String>,
     http_port: Option<u16>,
     poll_interval: Option<Duration>,
-    file_callback: Option<fn(String, Vec<u8>)>
+    data_callback: Option<fn(Vec<u8>)>
 }
 
 impl SolanaTransferDataServerBuilder {
@@ -319,8 +314,8 @@ impl SolanaTransferDataServerBuilder {
         self
     }
 
-    pub fn with_file_callback(&mut self, file_callback: fn(String, Vec<u8>)) -> &mut Self {
-        self.file_callback = Some(file_callback);
+    pub fn with_data_callback(&mut self, data_callback: fn(Vec<u8>)) -> &mut Self {
+        self.data_callback = Some(data_callback);
         self
     }
 
@@ -336,7 +331,7 @@ impl SolanaTransferDataServerBuilder {
                 nacl_sk: self.nacl_sk.take().unwrap(),
                 solana_pubkey: self.solana_pubkey.unwrap(),
                 transfers: Mutex::new(HashMap::new()),
-                file_callback: self.file_callback.unwrap()
+                data_callback: self.data_callback.unwrap()
             }),
             poll_interval: self
                 .poll_interval
