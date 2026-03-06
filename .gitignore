@@ -3,5 +3,6 @@
 /server/target
 /program/target
 /common/target
+solana-transfer-data-test/target
 .idea
 server_nacl_keypair.json
