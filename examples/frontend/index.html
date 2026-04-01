@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solana Data Transfer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 24px 20px; color: #1a1a1a; }
+    h1 { font-size: 24px; margin-bottom: 20px; }
+
+    /* Header bar: cluster + wallet */
+    #header { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #e0e0e0; }
+    #header select { padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+    #wallet-area { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+    #wallet-area button { padding: 6px 14px; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; background: #333; color: #fff; }
+    #wallet-area button:hover { background: #555; }
+    #wallet-info { font-size: 13px; color: #666; font-family: monospace; }
+
+    /* Tabs */
+    #tabs { display: flex; gap: 0; margin-bottom: 24px; }
+    #tabs button { flex: 1; padding: 10px; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; font-size: 14px; font-weight: 600; color: #666; }
+    #tabs button:first-child { border-radius: 6px 0 0 6px; }
+    #tabs button:last-child { border-radius: 0 6px 6px 0; }
+    #tabs button.active { background: #333; color: #fff; border-color: #333; }
+
+    /* Panels */
+    .panel { display: none; }
+    .panel.active { display: block; }
+    label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px; }
+    textarea, input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-family: monospace; font-size: 14px; }
+    textarea { height: 120px; resize: vertical; }
+    .action-btn { display: block; width: 100%; margin-top: 12px; padding: 12px; border: none; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; color: #fff; }
+    .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .action-btn.send { background: #1a73e8; }
+    .action-btn.retrieve { background: #0d9488; }
+
+    /* Result box */
+    .result { margin-top: 16px; padding: 14px; border-radius: 6px; font-family: monospace; font-size: 13px; white-space: pre-wrap; word-break: break-all; min-height: 48px; }
+    .result.info { background: #f0f4ff; border: 1px solid #c5d4f0; }
+    .result.success { background: #ecfdf5; border: 1px solid #a7f3d0; }
+    .result.error { background: #fef2f2; border: 1px solid #fecaca; }
+    .result.idle { background: #f5f5f5; border: 1px solid #e0e0e0; color: #999; }
+
+    /* Copy button */
+    .copy-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+    .copy-row input { flex: 1; }
+    .copy-row button { padding: 8px 14px; border: none; border-radius: 6px; background: #eee; cursor: pointer; font-size: 13px; white-space: nowrap; }
+    .copy-row button:hover { background: #ddd; }
+  </style>
+</head>
+<body>
+  <h1>Solana Data Transfer</h1>
+
+  <!-- Header: Cluster + Wallet -->
+  <div id="header">
+    <select id="cluster">
+      <option value="http://127.0.0.1:8899">Localnet</option>
+      <option value="https://api.devnet.solana.com">Devnet</option>
+      <option value="https://api.mainnet-beta.solana.com">Mainnet</option>
+    </select>
+    <div id="wallet-area">
+      <span id="wallet-info"></span>
+      <!-- wallet buttons injected here by JS -->
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div id="tabs">
+    <button class="active" data-tab="send">Send Data</button>
+    <button data-tab="retrieve">TX to Data</button>
+  </div>
+
+  <!-- Send panel -->
+  <div id="panel-send" class="panel active">
+    <label for="send-input">Data</label>
+    <textarea id="send-input" placeholder="Enter text or paste data to upload to Solana..."></textarea>
+    <button id="send-btn" class="action-btn send" disabled>Send</button>
+    <div id="send-result" class="result idle">Connect a wallet to send data.</div>
+    <div id="send-tx-row" class="copy-row" style="display:none;">
+      <input id="send-tx" type="text" readonly />
+      <button id="send-tx-copy">Copy TX</button>
+    </div>
+  </div>
+
+  <!-- Retrieve panel -->
+  <div id="panel-retrieve" class="panel">
+    <label for="retrieve-input">Transaction Signature</label>
+    <input id="retrieve-input" type="text" placeholder="Paste the last TX signature..." />
+    <button id="retrieve-btn" class="action-btn retrieve" disabled>Retrieve</button>
+    <div id="retrieve-result" class="result idle">Enter a TX signature to retrieve data.</div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

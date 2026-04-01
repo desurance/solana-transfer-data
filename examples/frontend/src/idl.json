@@ -1,0 +1,121 @@
+{
+  "address": "Emw5eLRyfwQrKnqt3P1UA2WwBrGgBRqaUjEv2Pu3YKGc",
+  "metadata": {
+    "name": "solana_data_transfer",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "upload_continuation",
+      "docs": [
+        "Upload a continuation block of a data transfer.",
+        "",
+        "Protocol layout (stored in transaction instruction data):",
+        "version(0001) | is_first(0) | prev_tx_signature(512bit) | data",
+        "",
+        "Each continuation block references the previous transaction signature,",
+        "forming a reverse linked list back to the first block."
+      ],
+      "discriminator": [
+        244,
+        20,
+        234,
+        45,
+        215,
+        67,
+        18,
+        77
+      ],
+      "accounts": [
+        {
+          "name": "uploader",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "prev_tx_sig",
+          "type": {
+            "array": [
+              "u8",
+              64
+            ]
+          }
+        },
+        {
+          "name": "data",
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "name": "upload_first",
+      "docs": [
+        "Upload the first block of a data transfer.",
+        "",
+        "Protocol layout (stored in transaction instruction data):",
+        "version(0001) | is_first(1) | total_size(32bit) | sha256_hash(256bit) | data",
+        "",
+        "The version and is_first flag are encoded implicitly by the instruction",
+        "discriminator. All data is retrievable by knowing the last transaction",
+        "signature and traversing the linked list backwards."
+      ],
+      "discriminator": [
+        121,
+        247,
+        137,
+        183,
+        178,
+        101,
+        213,
+        174
+      ],
+      "accounts": [
+        {
+          "name": "uploader",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "total_size",
+          "type": "u32"
+        },
+        {
+          "name": "sha256_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "data",
+          "type": "bytes"
+        }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "EmptyData",
+      "msg": "Data chunk cannot be empty"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidDataSize",
+      "msg": "Total data size must be greater than zero"
+    },
+    {
+      "code": 6002,
+      "name": "DataExceedsTotalSize",
+      "msg": "Data chunk exceeds total data size"
+    }
+  ]
+}
